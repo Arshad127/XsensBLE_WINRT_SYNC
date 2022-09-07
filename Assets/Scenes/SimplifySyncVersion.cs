@@ -9,13 +9,15 @@ public class SimplifySyncVersion : MonoBehaviour
 {
     // Class Variables and Constants
     private readonly string deviceName = "Xsens DOT";
-    private readonly string batteryServiceUuid = "{15173000-4947-11e9-8646-d663bd873d93}"; // xsens dot battery service
+    private string deviceId;
+    private readonly string batteryServiceUuid = "15173000-4947-11e9-8646-d663bd873d93"; // xsens dot battery service
     private readonly string batteryCharacteristicsUuid = "15173001-4947-11e9-8646-d663bd873d93";
     private Dictionary<string, Dictionary<string, string>> devices = new Dictionary<string, Dictionary<string, string>>();
     //private Dictionary<string, Dictionary<string, string>> devices;
 
 
     private string uiConsoleMessages = "";
+    private string lastError;
     private bool isScanningDevices = false;
     private bool isTargetDeviceFound = false;
     private bool isScanningServices = false;
@@ -51,10 +53,9 @@ public class SimplifySyncVersion : MonoBehaviour
         {
             ScanStatusTextBox.text = "";
         }
-        
-        BleApi.ScanStatus status;
 
-        // If the device is scanning, polling through the found devices
+        // If the device is scanning, poll through the found devices
+        BleApi.ScanStatus status;
         if (isScanningDevices)
         {
             BleApi.DeviceUpdate res = new BleApi.DeviceUpdate();
@@ -89,6 +90,8 @@ public class SimplifySyncVersion : MonoBehaviour
                         if (devices[res.id]["name"].Equals(deviceName))
                         {
                             isTargetDeviceFound = true;
+                            deviceId = res.id; // save the ID of the Xsens DOT for future ref
+                            PrintToUiConsole($"Selected Device ID -> {res.id}");
                         }
                         // add new device to list
                         //GameObject g = Instantiate(deviceScanResultProto, scanResultRoot);
@@ -102,11 +105,46 @@ public class SimplifySyncVersion : MonoBehaviour
                 else if (status == BleApi.ScanStatus.FINISHED)
                 {
                     isScanningDevices = false;
-                    //deviceScanButtonText.text = "Scan devices";
-                    //deviceScanStatusText.text = "finished";
+                    PrintToUiConsole("*** Scanning Complete ***");
                 }
   
             } while (status == BleApi.ScanStatus.AVAILABLE);
+        }
+
+        if (isScanningDevices && isTargetDeviceFound)
+        {
+            StopScanHandler();
+            StartServiceScanHandler();
+        }
+
+        if (isScanningServices)
+        {
+            BleApi.Service res = new BleApi.Service();
+            do
+            {
+                status = BleApi.PollService(out res, false);
+                if (status == BleApi.ScanStatus.AVAILABLE)
+                {
+                    PrintToUiConsole($"Service found -> {res.uuid}");
+                }
+                else if (status == BleApi.ScanStatus.FINISHED)
+                {
+                    isScanningServices = false;
+                    PrintToUiConsole("Service Scan Completed");
+                }
+            } while (status == BleApi.ScanStatus.AVAILABLE);
+        }
+
+        {
+            // log potential errors
+            BleApi.ErrorMessage res = new BleApi.ErrorMessage();
+            BleApi.GetError(out res);
+            if (lastError != res.msg)
+            {
+                Debug.LogError(res.msg);
+                //errorText.text = res.msg;
+                lastError = res.msg;
+            }
         }
     }
 
@@ -127,13 +165,11 @@ public class SimplifySyncVersion : MonoBehaviour
             
             BleApi.StartDeviceScan();
             isScanningDevices = true;
-
         }
         else
         {
             PrintToUiConsole("Scanning is already ongoing, cannot start another");
         }
-
     }
 
     public void StopScanHandler()
@@ -150,6 +186,12 @@ public class SimplifySyncVersion : MonoBehaviour
             PrintToUiConsole("Scanning process is already stopped");
         }
 
+    }
+
+    public void StartServiceScanHandler()
+    {
+        isScanningServices = true;
+        BleApi.ScanServices(deviceId);
     }
 
     public void ClearUiConsoleHandler()
