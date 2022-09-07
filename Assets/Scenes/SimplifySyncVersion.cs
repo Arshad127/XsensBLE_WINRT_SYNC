@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,9 +11,11 @@ public class SimplifySyncVersion : MonoBehaviour
     // Class Variables and Constants
     private readonly string deviceName = "Xsens DOT";
     private string deviceId;
-    private readonly string batteryServiceUuid = "15173000-4947-11e9-8646-d663bd873d93"; // xsens dot battery service
+    private readonly string batteryServiceUuid = "{15173000-4947-11e9-8646-d663bd873d93}"; // xsens dot battery service
     private readonly string batteryCharacteristicsUuid = "15173001-4947-11e9-8646-d663bd873d93";
     private Dictionary<string, Dictionary<string, string>> devices = new Dictionary<string, Dictionary<string, string>>();
+    private Dictionary<string, string> characteristicNames = new Dictionary<string, string>();
+
     //private Dictionary<string, Dictionary<string, string>> devices;
 
 
@@ -23,6 +26,8 @@ public class SimplifySyncVersion : MonoBehaviour
     private bool isScanningServices = false;
     private bool isScanningCharacteristics = false;
     private bool isSubscribed = false;
+    private bool hasFoundService = false;
+    private bool hasFoundCharacteristic = false;
 
     // GUI Elements
     public Button StartScanButton, StopScanButton, clearUiButton;
@@ -41,18 +46,23 @@ public class SimplifySyncVersion : MonoBehaviour
     void Update()
     {
         // Updating the status box
-        if (isTargetDeviceFound)
+        if (isTargetDeviceFound) 
         {
             ScanStatusTextBox.text = $"{deviceName} Found";
         }
-        else if (isScanningDevices && !isTargetDeviceFound)
+        if (isScanningDevices && !isTargetDeviceFound)
         {
             ScanStatusTextBox.text = $"Searching for {deviceName}";
         }
-        else
+        if (isScanningServices)
         {
-            ScanStatusTextBox.text = "";
+            ScanStatusTextBox.text = $"Searching for the Battery Service";
         }
+        if (isScanningCharacteristics)
+        {
+            ScanStatusTextBox.text = $"Searching for the Battery Characteristic";
+        }
+
 
         // If the device is scanning, poll through the found devices
         BleApi.ScanStatus status;
@@ -93,11 +103,6 @@ public class SimplifySyncVersion : MonoBehaviour
                             deviceId = res.id; // save the ID of the Xsens DOT for future ref
                             PrintToUiConsole($"Selected Device ID -> {res.id}");
                         }
-                        // add new device to list
-                        //GameObject g = Instantiate(deviceScanResultProto, scanResultRoot);
-                        //g.name = res.id;
-                        //g.transform.GetChild(0).GetComponent<Text>().text = devices[res.id]["name"];
-                        //g.transform.GetChild(1).GetComponent<Text>().text = res.id;
 
                         PrintToUiConsole("Name: " + devices[res.id]["name"] + " ID: " + res.id);
                     }
@@ -113,6 +118,7 @@ public class SimplifySyncVersion : MonoBehaviour
 
         if (isScanningDevices && isTargetDeviceFound)
         {
+            Thread.Sleep(1000);
             StopScanHandler();
             StartServiceScanHandler();
         }
@@ -126,6 +132,11 @@ public class SimplifySyncVersion : MonoBehaviour
                 if (status == BleApi.ScanStatus.AVAILABLE)
                 {
                     PrintToUiConsole($"Service found -> {res.uuid}");
+                    if (res.uuid.Equals(batteryServiceUuid))
+                    {
+                        PrintToUiConsole($"Selected Service - Battery -> {batteryServiceUuid}");
+                        hasFoundService = true;
+                    }
                 }
                 else if (status == BleApi.ScanStatus.FINISHED)
                 {
@@ -135,6 +146,36 @@ public class SimplifySyncVersion : MonoBehaviour
             } while (status == BleApi.ScanStatus.AVAILABLE);
         }
 
+        if (hasFoundService)
+        {
+            Thread.Sleep(1000);
+            //StartCharacteristicsScanHandler();
+        }
+
+        /*
+        if (isScanningCharacteristics)
+        {
+            BleApi.Characteristic res = new BleApi.Characteristic();
+            do
+            {
+                status = BleApi.PollCharacteristic(out res, false);
+                if (status == BleApi.ScanStatus.AVAILABLE)
+                {
+                    //string name = res.userDescription != "no description available" ? res.userDescription : res.uuid;
+                    //characteristicNames[name] = res.uuid;
+                    PrintToUiConsole($"Characteristic found -> {name}");
+                    PrintToUiConsole($"Characteristic found -> {res.userDescription}");
+                    PrintToUiConsole($"Characteristic found -> {res.uuid}");
+                }
+                else if (status == BleApi.ScanStatus.FINISHED)
+                {
+                    isScanningCharacteristics = false;
+                    PrintToUiConsole("Characteristics Scan Completed");
+                }
+            } while (status == BleApi.ScanStatus.AVAILABLE);
+        }
+        */
+
         {
             // log potential errors
             BleApi.ErrorMessage res = new BleApi.ErrorMessage();
@@ -142,7 +183,6 @@ public class SimplifySyncVersion : MonoBehaviour
             if (lastError != res.msg)
             {
                 Debug.LogError(res.msg);
-                //errorText.text = res.msg;
                 lastError = res.msg;
             }
         }
@@ -190,9 +230,30 @@ public class SimplifySyncVersion : MonoBehaviour
 
     public void StartServiceScanHandler()
     {
-        isScanningServices = true;
-        BleApi.ScanServices(deviceId);
+        if (!isScanningServices)
+        {
+            PrintToUiConsole("Now Scanning for Services");
+            isScanningServices = true;
+            BleApi.ScanServices(deviceId);
+        }
     }
+
+    /*
+    public void StartCharacteristicsScanHandler()
+    {
+        if (!isScanningCharacteristics)
+        {
+            // start new scan
+            isScanningCharacteristics = true;
+            PrintToUiConsole("Now Scanning for Characteristics");
+            PrintToUiConsole($"ID -> {deviceId}");
+            PrintToUiConsole($"ID -> {batteryServiceUuid}");
+            //BleApi.ScanCharacteristics(deviceId, batteryServiceUuid);
+            
+            
+        }
+    }
+    */
 
     public void ClearUiConsoleHandler()
     {
