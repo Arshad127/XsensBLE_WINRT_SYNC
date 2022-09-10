@@ -1,10 +1,13 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using ThreadPriority = UnityEngine.ThreadPriority;
 
 public class SynchronousStreaming : MonoBehaviour
 {
@@ -25,9 +28,12 @@ public class SynchronousStreaming : MonoBehaviour
     private bool isSubscribed = false;
     private bool hasFoundService = false;
     private bool hasFoundCharacteristic = false;
+    private Thread testingThread;
+    private ConcurrentQueue<string> uiConsoleMessagesList = new ConcurrentQueue<string>();
+
 
     // GUI Elements
-    public Button StartScanButton, StopScanButton, clearUiButton;
+    public Button startScanButton, killProcessesButton, clearUiButton;
     public TextMeshProUGUI UiConsoleText, ScanStatusTextBox;
 
 
@@ -36,134 +42,56 @@ public class SynchronousStreaming : MonoBehaviour
     {
         //StartScanButton.enabled = true;
         //StopScanButton.enabled = false;
+        BleApi.Quit();
         ScanStatusTextBox.text = "Ready";
+        lastError = "Ok";
+        //bool success = Caching.ClearCache();
     }
 
     // Update is called once per frame
     void Update()
     {
+        /*
         BleApi.ScanStatus status;
 
         if (isScanningCharacteristics)
         {
             BleApi.Characteristic res = new BleApi.Characteristic();
-            do
+            while (BleApi.PollCharacteristic(out res, true) != BleApi.ScanStatus.FINISHED)
             {
-                status = BleApi.PollCharacteristic(out res, false);
-                if (status == BleApi.ScanStatus.AVAILABLE)
-                {
-                    //string name = res.userDescription != "no description available" ? res.userDescription : res.uuid;
-                    //characteristicNames[name] = res.uuid;
-                    //PrintToUiConsole($"Characteristic found -> {name}");
-                    //PrintToUiConsole($"Characteristic found -> {res.userDescription}");
-                    PrintToUiConsole($"Characteristic found -> {res.uuid}");
-                }
-                else if (status == BleApi.ScanStatus.FINISHED)
-                {
-                    isScanningCharacteristics = false;
-                    PrintToUiConsole("Characteristics Scan Completed");
-                }
-            } while (status == BleApi.ScanStatus.AVAILABLE);
-        }
+                PrintToUiConsole($"Characteristic found -> {res.uuid}, {res.userDescription}");
+            }
 
-        /*
-        if (isScanningServices)
-        {
-            BleApi.Service res = new BleApi.Service();
-            do
+            if (BleApi.PollCharacteristic(out res, true) == BleApi.ScanStatus.FINISHED)
             {
-                status = BleApi.PollService(out res, false);
-                if (status == BleApi.ScanStatus.AVAILABLE)
-                {
-                    PrintToUiConsole($"Service found -> {res.uuid}");
-                    if (res.uuid.Equals(batteryServiceUuid))
-                    {
-                        PrintToUiConsole($"Selected Service - Battery -> {batteryServiceUuid}");
-                        hasFoundService = true;
-                    }
-                }
-                else if (status == BleApi.ScanStatus.FINISHED)
-                {
-                    isScanningServices = false;
-                    PrintToUiConsole("Service Scan Completed");
-                }
-            } while (status == BleApi.ScanStatus.AVAILABLE);
-        }
-        */
-
-        /*
-        // If the device is scanning, poll through the found devices
-        
-        if (isScanningDevices)
-        {
-            BleApi.DeviceUpdate res = new BleApi.DeviceUpdate();
-            do
-            {
-                status = BleApi.PollDevice(ref res, false);
-
-                if (status == BleApi.ScanStatus.AVAILABLE)
-                {
-
-                    if (!devices.ContainsKey(res.id))
-                    {
-                        devices[res.id] = new Dictionary<string, string>() {
-                            { "name", "" },
-                            { "isConnectable", "False" }
-                        };
-                    }
-
-                    if (res.nameUpdated)
-                    {
-                        devices[res.id]["name"] = res.name;
-                    }
-
-                    if (res.isConnectableUpdated)
-                    {
-                        devices[res.id]["isConnectable"] = res.isConnectable.ToString();
-                    }
-
-                    // consider only devices which have a name and which are connectable
-                    if (devices[res.id]["name"] != "" && devices[res.id]["isConnectable"] == "True")
-                    {
-                        if (devices[res.id]["name"].Equals(deviceName))
-                        {
-                            isTargetDeviceFound = true;
-                            deviceId = res.id; // save the ID of the Xsens DOT for future ref
-                            PrintToUiConsole($"Selected Device ID -> {res.id}");
-                        }
-
-                        PrintToUiConsole("Name: " + devices[res.id]["name"] + " ID: " + res.id);
-                    }
-                }
-                else if (status == BleApi.ScanStatus.FINISHED)
-                {
-                    isScanningDevices = false;
-                    PrintToUiConsole("*** Scanning Complete ***");
-                }
-
-            } while (status == BleApi.ScanStatus.AVAILABLE);
-        }
-        */
-
-
-
-        {
-            // log potential errors
-            BleApi.ErrorMessage res = new BleApi.ErrorMessage();
-            BleApi.GetError(out res);
-            if (lastError != res.msg)
-            {
-                Debug.LogError(res.msg);
-                lastError = res.msg;
+                isScanningCharacteristics = false;
+                PrintToUiConsole("Characteristics Scan Completed");
             }
         }
+        */
+
+        
+        // log potential errors
+        BleApi.ErrorMessage res = new BleApi.ErrorMessage();
+        BleApi.GetError(out res);
+        if (lastError != res.msg)
+        {
+            uiConsoleMessagesList.Enqueue(res.msg);
+            Debug.LogError(res.msg);
+            lastError = res.msg;
+        }
+
+        // Update the UI from concurrent queue
+        PrintToConsoleBurst();
+
     }
 
     public void QuitApplicationHandler()
     {
-        PrintToUiConsole("Quitting the application");
-        StartScanButton.enabled = false;
-        StopScanButton.enabled = false;
+        uiConsoleMessagesList.Enqueue("Quitting the application");
+        startScanButton.enabled = false;
+        killProcessesButton.enabled = false;
+        clearUiButton.enabled = false;
         BleApi.Quit();
         Application.Quit();
     }
@@ -184,7 +112,10 @@ public class SynchronousStreaming : MonoBehaviour
         }
         */
         //StartServiceScanHandler();
-        StartCharacteristicsScanHandler();
+        //StartCharacteristicsScanHandler();
+        testingThread = new Thread(ServiceScanning);
+        testingThread.Start();
+        uiConsoleMessagesList.Enqueue("Starting the testing thread");
     }
 
     public void StopScanHandler()
@@ -202,13 +133,18 @@ public class SynchronousStreaming : MonoBehaviour
             PrintToUiConsole("Scanning process is already stopped");
         }
         */
+        if (testingThread != null && testingThread.IsAlive)
+        {
+            testingThread.Abort();
+            uiConsoleMessagesList.Enqueue("Killed the testing thread");
+        }
     }
 
     public void StartServiceScanHandler()
     {
+        /*
         if (!isScanningServices)
         {
-
             PrintToUiConsole("Now Scanning for Services");
             PrintToUiConsole("Waiting before scanning services");
             Thread.Sleep(1000);
@@ -216,14 +152,16 @@ public class SynchronousStreaming : MonoBehaviour
             BleApi.ScanServices(deviceId);
             isScanningServices = true;
         }
+        */
     }
-
 
     public void StartCharacteristicsScanHandler()
     {
+        /*
         if (!isScanningCharacteristics)
         {
-            deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:7f"; // override
+            deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:77";
+            //deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:7f"; // override
 
             // start new scan
             PrintToUiConsole("Now Scanning for Characteristics");
@@ -231,9 +169,93 @@ public class SynchronousStreaming : MonoBehaviour
             PrintToUiConsole($"Device ID  -> {deviceId}");
             PrintToUiConsole($"Service ID -> {batteryServiceUuid}");
             Thread.Sleep(1000);
+            PrintToUiConsole("Starting Scan");
             BleApi.ScanCharacteristics(deviceId, batteryServiceUuid);
-            isScanningCharacteristics = true;
+            PrintToUiConsole("Past Scan Command");
+            //isScanningCharacteristics = true;
 
+        }
+        */
+    }
+
+    private void ServiceScanning()
+    {
+        deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:77";
+        //deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:7f"; // override
+
+        if (true)
+        {
+            uiConsoleMessagesList.Enqueue("Now Scanning for Services");
+            uiConsoleMessagesList.Enqueue("Waiting before scanning services");
+            Thread.Sleep(1000);
+            BleApi.ScanServices(deviceId);
+            isScanningServices = true;
+        }
+
+        BleApi.ScanStatus status;
+
+        BleApi.Service res = new BleApi.Service();
+        do
+        {
+            status = BleApi.PollService(out res, false);
+            if (status == BleApi.ScanStatus.AVAILABLE)
+            {
+                uiConsoleMessagesList.Enqueue("Poll Service = AVAILABLE");
+
+                uiConsoleMessagesList.Enqueue($"Service found -> {res.uuid}");
+                if (res.uuid.Equals(batteryServiceUuid))
+                {
+                    uiConsoleMessagesList.Enqueue($"Selected Service - Battery -> {batteryServiceUuid}");
+                    hasFoundService = true;
+                }
+            }
+            else if (status == BleApi.ScanStatus.FINISHED)
+            {
+                uiConsoleMessagesList.Enqueue("Poll Service = FINISHED");
+
+                isScanningServices = false;
+                uiConsoleMessagesList.Enqueue("Service Scan Completed");
+            }
+            else
+            {
+                uiConsoleMessagesList.Enqueue("Poll Service = PROCESSING");
+            }
+        } while (status == BleApi.ScanStatus.AVAILABLE);
+        uiConsoleMessagesList.Enqueue("Out of the  service poll loop");
+    }
+
+    private void CharacteristicsScanning()
+    {
+        deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:77";
+        //deviceId = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:7f"; // override
+
+        uiConsoleMessagesList.Enqueue("Now Scanning for Characteristics");
+        uiConsoleMessagesList.Enqueue($"Device ID  -> {deviceId}");
+        uiConsoleMessagesList.Enqueue($"Service ID -> {batteryServiceUuid}");
+        Thread.Sleep(1000);
+        BleApi.ScanCharacteristics(deviceId, batteryServiceUuid);
+
+        BleApi.ScanStatus status;
+        /*
+        if (isScanningCharacteristics)
+        {
+            BleApi.Characteristic res = new BleApi.Characteristic();
+            while (BleApi.PollCharacteristic(out res, true) != BleApi.ScanStatus.FINISHED)
+            {
+                Debug.Log($"Characteristic found -> {res.uuid}, {res.userDescription}");
+            }
+
+            if (BleApi.PollCharacteristic(out res, true) == BleApi.ScanStatus.FINISHED)
+            {
+                isScanningCharacteristics = false;
+                Debug.Log("Characteristics Scan Completed");
+            }
+        }
+        */
+        BleApi.Characteristic res = new BleApi.Characteristic();
+        while (BleApi.PollCharacteristic(out res, true) != BleApi.ScanStatus.FINISHED)
+        {
+            uiConsoleMessagesList.Enqueue($"Characteristic found -> {res.uuid}, {res.userDescription}");
         }
     }
 
@@ -241,25 +263,18 @@ public class SynchronousStreaming : MonoBehaviour
     public void ClearUiConsoleHandler()
     {
         uiConsoleMessages = "";
-        PrintToUiConsole("UI console cleared");
+        uiConsoleMessagesList.Enqueue("UI console cleared");
     }
 
-    void PrintToUiConsole(string newMessage)
+    void PrintToConsoleBurst()
     {
-        uiConsoleMessages = $"[{DateTime.Now.ToLongTimeString()}] {newMessage}\n{uiConsoleMessages}";
-
-        // Try-Catch-Finally in case there are thread issues
-        try
+        while (!uiConsoleMessagesList.IsEmpty)
         {
+            string msg;
+            uiConsoleMessagesList.TryDequeue(out msg);
+            uiConsoleMessages = $"[{DateTime.Now.ToLongTimeString()}] {msg}\n{uiConsoleMessages}";
+            Debug.Log(msg);
             UiConsoleText.text = uiConsoleMessages;
-        }
-        catch (Exception e)
-        {
-            Debug.Log($"Error in printing to the UI Console -> {e}");
-        }
-        finally
-        {
-            Debug.Log(newMessage);
         }
     }
 }

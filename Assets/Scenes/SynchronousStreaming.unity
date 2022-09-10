@@ -207,8 +207,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: SimplifySyncVersion, Assembly-CSharp
+      - m_Target: {fileID: 1312244674}
+        m_TargetAssemblyTypeName: SynchronousStreaming, Assembly-CSharp
         m_MethodName: QuitApplicationHandler
         m_Mode: 1
         m_Arguments:
@@ -896,7 +896,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Stop Scan
+  m_text: Kill Processes
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1441,8 +1441,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc5e758547617e14dafa1d066f2fe7b1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  StartScanButton: {fileID: 1029634772}
-  StopScanButton: {fileID: 2085359455}
+  startScanButton: {fileID: 1029634772}
+  killProcessesButton: {fileID: 2085359455}
   clearUiButton: {fileID: 230627922}
   UiConsoleText: {fileID: 1774593165}
   ScanStatusTextBox: {fileID: 654166089}
@@ -1811,7 +1811,7 @@ GameObject:
   - component: {fileID: 2085359453}
   - component: {fileID: 2085359455}
   m_Layer: 0
-  m_Name: StopScanButton
+  m_Name: KillProcessesButton
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -28,6 +28,7 @@ public class SimplifySyncVersion : MonoBehaviour
     private bool isSubscribed = false;
     private bool hasFoundService = false;
     private bool hasFoundCharacteristic = false;
+    private int frameCount = 0;
 
     // GUI Elements
     public Button StartScanButton, StopScanButton, clearUiButton;
@@ -45,6 +46,8 @@ public class SimplifySyncVersion : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        //Debug.LogWarning($"Frame {frameCount}");
+        frameCount++;
         // Updating the status box
         if (isTargetDeviceFound) 
         {
@@ -268,7 +271,7 @@ public class SimplifySyncVersion : MonoBehaviour
 
     void PrintToUiConsole(string newMessage)
     {
-        uiConsoleMessages = $"[{DateTime.Now.ToLongTimeString()}] {newMessage}\n{uiConsoleMessages}";
+        uiConsoleMessages = $"[{DateTime.Now.ToLongTimeString()}][Frame: {frameCount}] {newMessage}\n{uiConsoleMessages}";
 
         // Try-Catch-Finally in case there are thread issues
         try {
@@ -278,7 +281,7 @@ public class SimplifySyncVersion : MonoBehaviour
             Debug.Log($"Error in printing to the UI Console -> {e}");
         }
         finally {
-            Debug.Log(newMessage);
+            Debug.Log($"[Frame: {frameCount}] {newMessage}");
         }
     }
 }
