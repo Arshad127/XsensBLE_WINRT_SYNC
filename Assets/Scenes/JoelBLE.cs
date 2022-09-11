@@ -150,7 +150,16 @@ public class JoelBLE
                 if (res.nameUpdated)
                 {
                     deviceIds.Add(res.id);
-                    deviceNames.Add(res.id, res.name);
+
+                    if (deviceNames.ContainsKey(res.id))
+                    {
+                        deviceNames[res.id] = res.name;
+                    }
+                    else
+                    {
+                        deviceNames.Add(res.id, res.name);
+                    }
+                        
                 }
 
                 // connectable device

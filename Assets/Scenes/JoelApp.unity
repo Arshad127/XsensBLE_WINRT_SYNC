@@ -650,7 +650,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1312244674}
         m_TargetAssemblyTypeName: JoelAppScript, Assembly-CSharp
-        m_MethodName: StartProcessHandle
+        m_MethodName: ScanForDeviceHandler
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -896,7 +896,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Kill Processes
+  m_text: Battery Status
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1442,7 +1442,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   StartScanButton: {fileID: 1029634772}
-  KillProcessButton: {fileID: 2085359455}
+  GetBatteryStatusButton: {fileID: 2085359455}
   clearUiButton: {fileID: 230627922}
   UiConsoleText: {fileID: 1774593165}
   ScanStatusTextBox: {fileID: 654166089}
@@ -1811,7 +1811,7 @@ GameObject:
   - component: {fileID: 2085359453}
   - component: {fileID: 2085359455}
   m_Layer: 0
-  m_Name: KillProcessesButton
+  m_Name: GetBatteryStatusButton
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1922,7 +1922,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1312244674}
         m_TargetAssemblyTypeName: JoelAppScript, Assembly-CSharp
-        m_MethodName: KillProcessHandle
+        m_MethodName: GetBatteryStatusHandler
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
