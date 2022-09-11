@@ -19,15 +19,16 @@ public class JoelAppScript : MonoBehaviour
     private ConcurrentDictionary<string, string> discoveredDevices = new ConcurrentDictionary<string, string>();
 
     private Dictionary<string, string> characteristicNames = new Dictionary<string, string>();
-    private Thread testingThread, deviceScanningThread;
+    private Thread testingThread, deviceScanningThread, batteryThread, connectionThread;
     private JoelBLE ble;
     private JoelBLE.BLEScan scan;
 
     private bool deviceFound = false;
     private bool isScanningForDevice = false;
+    private bool isConnectedToDevice = false;
 
     // GUI Elements
-    public Button StartScanButton, GetBatteryStatusButton, clearUiButton;
+    public Button discoverButton, batteryStatusButton, clearUiButton, connectButton;
     public TextMeshProUGUI UiConsoleText, ScanStatusTextBox;
 
     // GUI Related
@@ -36,35 +37,57 @@ public class JoelAppScript : MonoBehaviour
 
     void Start()
     {
+        ble = new JoelBLE();
         ScanStatusTextBox.text = "";
         UiConsoleText.text = "";
-        GetBatteryStatusButton.enabled = true;
-        StartScanButton.enabled = true;
+        batteryStatusButton.enabled = true;
+        discoverButton.enabled = true;
         clearUiButton.enabled = true;
+        connectButton.enabled = true;
     }
 
 
     void Update()
     {
-        // Update the UI from concurrent queue
+        // GUI updates
         PrintToConsoleBurst();
 
     }
 
-    public void StartProcessHandler()
+    public void SubscribeToBatteryHandler()
     {
-
-    }
-
-    public void GetBatteryStatusHandler()
-    {
-        if (deviceFound)
+        if (deviceId != null && !deviceId.Equals("-1"))
         {
-            uiConsoleMessagesList.Enqueue("ready");
+            uiConsoleMessagesList.Enqueue("Connection Attempt");
+            batteryThread = new Thread(GetBatteryStatus);
+            batteryThread.Start();
         }
         else
         {
-            uiConsoleMessagesList.Enqueue("Device not found");
+            uiConsoleMessagesList.Enqueue($"Cannot subscribe since {deviceName} has not been found");
+        }
+    }
+
+    public void ConnectHandler()
+    {
+        uiConsoleMessagesList.Enqueue("Not implemented");
+    }
+
+    void ConnectBleDevice()
+    {
+        uiConsoleMessagesList.Enqueue("Not implemented");
+    }
+
+    void GetBatteryStatus()
+    {
+        bool isSuccessful = ble.SubscribeToCharacteristic(deviceId, batteryServiceUuid, batteryCharacteristicsUuid);
+        if (isSuccessful)
+        {
+            uiConsoleMessagesList.Enqueue("Battery Subscription successful");
+        }
+        else
+        {
+            uiConsoleMessagesList.Enqueue("Battery Subscription Failed");
         }
     }
 
@@ -111,7 +134,7 @@ public class JoelAppScript : MonoBehaviour
             {
                 deviceId = _discoveredDeviceId;
                 deviceFound = true;      
-                uiConsoleMessagesList.Enqueue($"Target device {deviceName} has been found -> ID: {deviceId}");
+                uiConsoleMessagesList.Enqueue($"{deviceName} found -> ID: {deviceId}");
             }
         };
 
@@ -151,6 +174,12 @@ public class JoelAppScript : MonoBehaviour
         if (deviceScanningThread != null && deviceScanningThread.IsAlive)
         {
             deviceScanningThread.Abort();
+            deviceScanningThread = null;
+        }
+        if (batteryThread != null && batteryThread.IsAlive)
+        {
+            batteryThread.Abort();
+            batteryThread = null;
         }
     }
 

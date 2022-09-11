@@ -181,6 +181,41 @@ public class JoelBLE
         return currentScan;
     }
 
+    public bool SubscribeToCharacteristic(string deviceId, string serviceUuid, string characteristicUuid)
+    {
+        // Services Scan
+        Debug.Log("BLE > Retrieving BLE Profile...");
+        Impl.ScanServices(deviceId);
+        Impl.Service service = new Impl.Service();
+        while (Impl.PollService(out service, true) != Impl.ScanStatus.FINISHED)
+        {
+            Debug.Log("BLE > Service found: " + service.uuid);
+        }
+
+        // Characteristics Scan
+        Thread.Sleep(500); // Delay to prevent errors
+        Impl.ScanCharacteristics(deviceId, serviceUuid);
+        Impl.Characteristic c = new Impl.Characteristic();
+        while (Impl.PollCharacteristic(out c, true) != Impl.ScanStatus.FINISHED)
+        {
+            Debug.Log("BLE > Characteristic found: " + c.uuid + ", user description: " + c.userDescription);
+        }
+
+        if (GetError() != "Ok")
+        {
+            throw new Exception("BLE > Connection failed: " + GetError());
+        }
+
+        // Subscription
+        Debug.Log("BLE > Subscribing to the Characteristic");
+        bool result = SubscribeSingle(deviceId, serviceUuid, characteristicUuid);
+        if (GetError() != "Ok" || !result)
+        {
+            throw new Exception("BLE > Connection failed: " + GetError());
+        }
+        //isConnected = true;
+        return true;
+    }
     public static void RetrieveProfile(string deviceId, string serviceUuid)
     {
         Impl.ScanServices(deviceId);
@@ -200,7 +235,19 @@ public class JoelBLE
         }
     }
 
-    public static bool Subscribe(string deviceId, string serviceUuids, string[] characteristicUuids)
+    public static bool SubscribeSingle(string deviceId, string serviceUuids, string characteristicUuid)
+    {
+
+        bool res = Impl.SubscribeCharacteristic(deviceId, serviceUuids, characteristicUuid);
+        if (!res)
+        {
+            return false;
+        }
+        
+        return true;
+    }
+
+    public static bool SubscribeToCharacteristics(string deviceId, string serviceUuids, string[] characteristicUuids)
     {
         foreach (string characteristicUuid in characteristicUuids)
         {
@@ -228,7 +275,7 @@ public class JoelBLE
         }
 
         Debug.Log("Subscribing to characteristics...");
-        bool result = Subscribe(deviceId, serviceUuid, characteristicUuids);
+        bool result = SubscribeToCharacteristics(deviceId, serviceUuid, characteristicUuids);
         if (GetError() != "Ok" || !result)
         {
             throw new Exception("Connection failed: " + GetError());
@@ -237,10 +284,6 @@ public class JoelBLE
         return true;
     }
 
-    public bool XsensBlink(string deviceId, string serviceUuid, string characteristicUuid, byte[] data)
-    {
-        return WritePackage(deviceId, serviceUuid, characteristicUuid, data);
-    }
 
     public static bool WritePackage(string deviceId, string serviceUuid, string characteristicUuid, byte[] data)
     {
