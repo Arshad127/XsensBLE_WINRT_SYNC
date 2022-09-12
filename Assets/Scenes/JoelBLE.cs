@@ -106,6 +106,11 @@ public class JoelBLE
     public static BLEScan currentScan = new BLEScan();
     public bool isConnected = false;
 
+
+
+
+
+
     public class BLEScan
     {
         public delegate void FoundDel(string deviceId, string deviceName);
@@ -121,9 +126,14 @@ public class JoelBLE
         }
     }
 
-    // don't block the thread in the Found or Finished callback; it would disturb cancelling the scan
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // [STATIC FUNCTION] - Find all BLE devices
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public static BLEScan ScanDevices()
     {
+        // NOTE: don't block the thread in the Found or Finished callback; it would disturb cancelling the scan
+
         if (scanThread == Thread.CurrentThread)
         {
             throw new InvalidOperationException("a new scan can not be started from a callback of the previous scan");
@@ -134,88 +144,312 @@ public class JoelBLE
             throw new InvalidOperationException("the old scan is still running");
         }
 
+
         // Variables Initiation
         currentScan.Found = null;
         currentScan.Finished = null;
+
+
         scanThread = new Thread(() =>
         {
             Impl.StartDeviceScan();
-            Impl.DeviceUpdate res = new Impl.DeviceUpdate();
+            Impl.DeviceUpdate deviceFound = new Impl.DeviceUpdate();
             List<string> deviceIds = new List<string>();
             Dictionary<string, string> deviceNames = new Dictionary<string, string>();
 
-            //Impl.ScanStatus status;
-            while (Impl.PollDevice(out res, true) != Impl.ScanStatus.FINISHED)
-            {
-                if (res.nameUpdated)
-                {
-                    deviceIds.Add(res.id);
 
-                    if (deviceNames.ContainsKey(res.id))
+            // Scan for all BLE devices (until status = FINISHED)
+            while (Impl.PollDevice(out deviceFound, true) != Impl.ScanStatus.FINISHED)
+            {
+                
+                if (deviceFound.nameUpdated)
+                {
+                    deviceIds.Add(deviceFound.id);
+
+                    if (deviceNames.ContainsKey(deviceFound.id))
                     {
-                        deviceNames[res.id] = res.name;
+                        deviceNames[deviceFound.id] = deviceFound.name;
                     }
                     else
                     {
-                        deviceNames.Add(res.id, res.name);
+                        deviceNames.Add(deviceFound.id, deviceFound.name);
                     }
-                        
-                }
 
-                // connectable device
-                if (deviceIds.Contains(res.id) && res.isConnectable)
+                }
+                
+                // Connectable device
+                if (deviceIds.Contains(deviceFound.id) && deviceFound.isConnectable)
                 {
-                    currentScan.Found?.Invoke(res.id, deviceNames[res.id]);
+                    // [DELEGATE]
+                    currentScan.Found?.Invoke(deviceFound.id, deviceNames[deviceFound.id]);
                 }
 
-                // check if scan was cancelled in callback
+                // Check if scan was cancelled in callback
                 if (currentScan.cancelled)
                 {
                     break;
                 }
             }
+
+            // [DELEGATE]
             currentScan.Finished?.Invoke();
+
             scanThread = null;
         });
+
+
         scanThread.Start();
+
+
         return currentScan;
     }
 
+
+
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // [STATIC FUNCTION] - Subscribe to BLE
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public bool SubscribeToCharacteristic(string deviceId, string serviceUuid, string characteristicUuid)
     {
-        // Services Scan
-        Debug.Log("BLE > Retrieving BLE Profile...");
+
+        // Scan for all devices :
+        Impl.StartDeviceScan();
+
+
+        // Services Scan :
+        Debug.Log("[BLE LIBRARY] - Retrieving BLE Profiles...");
+
         Impl.ScanServices(deviceId);
-        Impl.Service service = new Impl.Service();
-        while (Impl.PollService(out service, true) != Impl.ScanStatus.FINISHED)
+        Impl.Service bleService = new Impl.Service();
+
+
+        string servicesList = "[BLE LIBRARY] - Service found: \n\n";
+        while (Impl.PollService(out bleService, true) != Impl.ScanStatus.FINISHED)
         {
-            Debug.Log("BLE > Service found: " + service.uuid);
+            servicesList += bleService.uuid + "\n";
         }
+        Debug.Log(servicesList);
+
+
+
+
+
 
         // Characteristics Scan
         Thread.Sleep(500); // Delay to prevent errors
+
         Impl.ScanCharacteristics(deviceId, serviceUuid);
-        Impl.Characteristic c = new Impl.Characteristic();
-        while (Impl.PollCharacteristic(out c, true) != Impl.ScanStatus.FINISHED)
+        Impl.Characteristic bleCharacterictic = new Impl.Characteristic();
+
+
+        string characteristicsList = "[BLE LIBRARY] - Characteristic found: \n\n";
+        while (Impl.PollCharacteristic(out bleCharacterictic, true) != Impl.ScanStatus.FINISHED)
         {
-            Debug.Log("BLE > Characteristic found: " + c.uuid + ", user description: " + c.userDescription);
+            characteristicsList += bleCharacterictic.uuid + ", user description: " + bleCharacterictic.userDescription;
         }
+        Debug.Log(characteristicsList);
+
+
+
 
         if (GetError() != "Ok")
         {
-            throw new Exception("BLE > Connection failed: " + GetError());
+            throw new Exception("[BLE LIBRARY] - Connection failed: " + GetError());
         }
 
+
+
+        Thread.Sleep(500); // Delay to prevent errors
+
+
+
+
         // Subscription
-        Debug.Log("BLE > Subscribing to the Characteristic");
-        bool result = SubscribeSingle(deviceId, serviceUuid, characteristicUuid);
-        if (GetError() != "Ok" || !result)
+        Debug.Log("[BLE LIBRARY] - Subscribing to the Characteristic\n\n");
+
+        //bool result = SubscribeSingle(deviceId, serviceUuid, characteristicUuid);
+        Impl.SubscribeCharacteristic(deviceId, serviceUuid, characteristicUuid);
+
+        if (GetError() != "Ok")// || !result)
         {
-            throw new Exception("BLE > Connection failed: " + GetError());
+            throw new Exception("[BLE LIBRARY] - Connection failed: " + GetError());
         }
         //isConnected = true;
+
+
+
+
+        
         return true;
     }
+
+
+
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // [FUNCTION] - Read data from BLE
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    public byte[] ReadDataTest()
+    {
+        int s = 2;
+        int c = 2;
+        string deviceId         = "BluetoothLE#BluetoothLE98:43:fa:23:ef:41-d4:ca:6e:f1:82:7f";
+        string serviceId        = $"1517{s}000-4947-11e9-8646-d663bd873d93";
+        string characteristicId = $"1517{s}00{c}-4947-11e9-8646-d663bd873d93";
+
+        Impl.Service bleService = new Impl.Service();
+        Impl.Characteristic bleCharacterictic = new Impl.Characteristic();
+        Impl.BLEData bleObj = new Impl.BLEData();
+
+
+
+
+
+
+        // Scan for all devices :
+        Impl.StartDeviceScan();
+        if (GetError() != "Ok") { throw new Exception("[BLE LIBRARY] - Scan failed: " + GetError()); }
+
+
+        Debug.Log("SUCCESS: StartDeviceScan");
+        Thread.Sleep(500); // Delay to prevent errors
+
+
+
+
+
+
+        Impl.ScanServices(deviceId);
+        Impl.PollService(out bleService, true);
+        if (GetError() != "Ok") { throw new Exception("[BLE LIBRARY] - Service failed: " + GetError()); }
+
+
+        Debug.Log("SUCCESS: ScanServices");
+        Thread.Sleep(500); // Delay to prevent errors
+
+
+
+
+
+        Impl.ScanCharacteristics(deviceId, serviceId);
+        Impl.PollCharacteristic(out bleCharacterictic, true);
+        if (GetError() != "Ok") { throw new Exception("[BLE LIBRARY] - Characteristic failed: " + GetError()); }
+
+
+        Debug.Log("SUCCESS: ScanCharacteristics");
+        Thread.Sleep(500); // Delay to prevent errors
+
+
+
+
+
+        Impl.SubscribeCharacteristic(deviceId, serviceId, characteristicId);
+        if (GetError() != "Ok") { throw new Exception("[BLE LIBRARY] - Subscription failed: " + GetError()); }
+
+
+        Debug.Log("SUCCESS: SubscribeCharacteristic");
+        Thread.Sleep(500); // Delay to prevent errors
+
+
+
+
+
+
+        Debug.Log("[READ START]");
+
+
+        bleObj.deviceId               = deviceId;
+        bleObj.serviceUuid            = serviceId;
+        bleObj.characteristicUuid     = characteristicId;
+
+        Impl.PollData(out bleObj, false);
+        Impl.PollData(out bleObj, true);
+        if (GetError() != "Ok") { throw new Exception("[BLE LIBRARY] - Connection failed: " + GetError()); }
+
+
+
+        Debug.Log("[READ END]");
+
+
+
+
+        return bleObj.buf;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // [FUNCTION] - Read data from BLE
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    public byte[] ReadBytes()
+    {
+        Impl.BLEData packageReceived;
+
+
+        Debug.Log("[START]");
+        bool result = Impl.PollData(out packageReceived, true);
+        Debug.Log("[END]");
+
+
+
+
+        Debug.Log($"[BLE LIBRARY] -  ReadBytes {packageReceived.buf.Length}");
+
+        
+        if (result)
+        {
+            Debug.Log("[BLE LIBRARY] - Size: " + packageReceived.size);
+            Debug.Log("[BLE LIBRARY] - From: " + packageReceived.deviceId);
+
+
+            if (packageReceived.size > 512)
+            {
+                throw new ArgumentOutOfRangeException("[BLE LIBRARY] - Package too large.");
+            }
+            return packageReceived.buf;
+        }
+        else
+        {
+            return new byte[] { 0x0 };
+        }
+
+        return packageReceived.buf;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
     public static void RetrieveProfile(string deviceId, string serviceUuid)
     {
         Impl.ScanServices(deviceId);
@@ -315,31 +549,6 @@ public class JoelBLE
         }
     }
 
-    public byte[] ReadBytes()
-    {
-        Impl.BLEData packageReceived;
-        bool result = Impl.PollData(out packageReceived, true);
-
-
-        Debug.Log($">>>> ReadBytes {packageReceived.buf.Length}");
-
-        if (result)
-        {
-            Debug.Log("Size: " + packageReceived.size);
-            Debug.Log("From: " + packageReceived.deviceId);
-
-
-            if (packageReceived.size > 512)
-            {
-                throw new ArgumentOutOfRangeException("Package too large.");
-            }
-            return packageReceived.buf;
-        }
-        else
-        {
-            return new byte[] { 0x0 };
-        }
-    }
 
     public void Close()
     {

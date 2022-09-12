@@ -76,6 +76,7 @@ public class SimplifySyncVersion : MonoBehaviour
             {
                 status = BleApi.PollDevice(ref res, false);
                 
+                
                 if (status == BleApi.ScanStatus.AVAILABLE)
                 {
 
